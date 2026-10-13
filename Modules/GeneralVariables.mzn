@@ -54,3 +54,10 @@ array[1..VM] of var 1..64: CPU;
 array[1..VM] of var 1700..976000: Memory;
 array[1..VM] of var 1000..24000: Storage;
 array[1..VM] of var 0..16000: Price;
+
+% Number of Availability Zones
+int: NoZones;
+
+% Zone mapping for each VM slot (1..NoZones)
+array[1..VM] of 1..NoZones: VMZone;
+

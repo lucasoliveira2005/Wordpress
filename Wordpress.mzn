@@ -17,7 +17,7 @@
 include "Modules/SymmetryBreaking.mzn";
 include "Modules/GeneralVariables.mzn";
 include "Modules/GeneralConstraints.mzn";
-
+include "Modules/AZConstraints.mzn";
 
 /***********************************
  ****                           ****
@@ -66,6 +66,20 @@ constraint lowerBound(AssignmentMatrix, VM, Wordpress, WPInstances);
 constraint lowerBound(AssignmentMatrix, VM, Varnish, 2);
 constraint lowerBound(AssignmentMatrix, VM, MySQL, 2);
 constraint upperBound(AssignmentMatrix, VM, DNS_LoadBalancer, 1);
+
+
+
+
+% Availability Zone Anti-Affinity (Fault Tolerance)
+constraint if NoZones > 1 then
+    az_dispersion(AssignmentMatrix, VMZone, NoZones, VM, MySQL) /\
+    az_dispersion(AssignmentMatrix, VMZone, NoZones, VM, Varnish) /\
+    az_dispersion(AssignmentMatrix, VMZone, NoZones, VM, HTTP_LoadBalancer)
+else
+    true
+endif;
+
+
 
 /***********************************
  ****                           ****

@@ -6,12 +6,14 @@ from minizinc import Model, Instance, Solver
 from datetime import timedelta
 import time
 
+import re
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "Data"
 
 MODELO_MZN = BASE_DIR / "Wordpress.mzn"
 SOLVER_NAME = "gecode"
+
 
 
 def list_dzn_files():
@@ -69,6 +71,14 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
     solver = Solver.lookup(solver_name)
 
     instancia = Instance(solver, modelo)
+
+    # Check if the .dzn has AZ parameters (legacy fallback)
+    dzn_text = ficheiro_dzn.read_text()
+    if "NoZones" not in dzn_text:
+        match_vm = re.search(r"VM\s*=\s*(\d+);", dzn_text)
+        vm_count = int(match_vm.group(1)) if match_vm else 8
+        instancia["NoZones"] = 1
+        instancia["VMZone"] = [1] * vm_count
     print("\nSolving (limite: 600 segundos)...", flush=True)
     
     inicio = time.perf_counter()
@@ -105,25 +115,49 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
         sol = resultado.solution
 
         # 1. Configuracao das VMs
-        print("\n" + "-" * 65)
+        print("\n" + "-" * 75)
         print("CONFIGURACAO DAS MAQUINAS VIRTUAIS")
-        print("-" * 65)
+        print("-" * 75)
 
-        print(
-            f"{'VM':>4} {'Tipo':>6} {'CPU':>6} "
-            f"{'Memoria':>10} {'Storage':>10} {'Preco':>8}"
-        )
-        print("-" * 50)
+        # Retrieve VMZone from file/instance if available
+        vm_zones = None
+        try:
+            vm_zones = list(instancia["VMZone"])
+        except Exception:
+            pass
 
-        for i in range(len(sol.VMType)):
+        if vm_zones:
             print(
-                f"{i + 1:>4} "
-                f"{sol.VMType[i]:>6} "
-                f"{sol.CPU[i]:>6} "
-                f"{sol.Memory[i]:>10} "
-                f"{sol.Storage[i]:>10} "
-                f"{sol.Price[i]:>8}"
+                f"{'VM':>4} {'Zona':>6} {'Tipo':>6} {'CPU':>6} "
+                f"{'Memoria':>10} {'Storage':>10} {'Preco':>8}"
             )
+            print("-" * 60)
+            for i in range(len(sol.VMType)):
+                z_str = f"Z{vm_zones[i]}" if i < len(vm_zones) else "-"
+                print(
+                    f"{i + 1:>4} "
+                    f"{z_str:>6} "
+                    f"{sol.VMType[i]:>6} "
+                    f"{sol.CPU[i]:>6} "
+                    f"{sol.Memory[i]:>10} "
+                    f"{sol.Storage[i]:>10} "
+                    f"{sol.Price[i]:>8}"
+                )
+        else:
+            print(
+                f"{'VM':>4} {'Tipo':>6} {'CPU':>6} "
+                f"{'Memoria':>10} {'Storage':>10} {'Preco':>8}"
+            )
+            print("-" * 50)
+            for i in range(len(sol.VMType)):
+                print(
+                    f"{i + 1:>4} "
+                    f"{sol.VMType[i]:>6} "
+                    f"{sol.CPU[i]:>6} "
+                    f"{sol.Memory[i]:>10} "
+                    f"{sol.Storage[i]:>10} "
+                    f"{sol.Price[i]:>8}"
+                )
 
         # 2. Matriz de atribuicao
         print("\n" + "-" * 65)
@@ -131,15 +165,24 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
         print("-" * 65)
 
         matriz = sol.AssignmentMatrix
-        cabecalho = "     " + "".join(
-            f"{'VM ' + str(j + 1):>6}"
-            for j in range(len(matriz[0]))
-        )
-        print(cabecalho)
+        comp_labels = ["WordPress", "MySQL", "DNS_LB", "HTTP_LB", "Varnish"]
+
+        # Build column header with VM and Zone (e.g. VM 1 (Z1))
+        col_headers = []
+        for j in range(len(matriz[0])):
+            if vm_zones and j < len(vm_zones):
+                col_headers.append(f"VM {j+1}(Z{vm_zones[j]})")
+            else:
+                col_headers.append(f"VM {j+1}")
+
+        header_str = "              " + "".join(f"{h:>11}" for h in col_headers)
+        print(header_str)
+        print("              " + "-" * (len(header_str) - 14))
 
         for i, linha in enumerate(matriz):
-            valores = "".join(f"{valor:>6}" for valor in linha)
-            print(f"{'C' + str(i + 1):>4} {valores}")
+            c_name = comp_labels[i] if i < len(comp_labels) else f"Comp {i+1}"
+            valores = "".join(f"{valor:>11}" for valor in linha)
+            print(f"{c_name:<14}{valores}")
 
     else:
         print("\nNenhuma solucao encontrada.")
