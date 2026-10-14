@@ -1,0 +1,61 @@
+% ================================================================
+% Instance: AZ_O15_WP4_VM10_Z4_Campus.dzn
+% Course: Symbolic Explainable Artificial Intelligence (S-XAI)
+% Problem: WordPress Multi-AZ Cloud Deployment (CSPLib prob090 Extension)
+% Description: Campus 4-Zone Datacenter: 15 offers, 4 WP, 10 VMs, tight 5ms SLA (Z3-Z4 at 6ms violates)
+% Parameters: WPInstances=4 | VM Slots=10 | Zones=4 | Offers=15
+% SLA: MaxAllowedLatency = 5 ms (VMZone dynamically assigned by solver)
+% ================================================================
+
+% --- AVAILABILITY ZONE EXTENSION PARAMETERS ---
+NoZones = 4;
+
+% --- NETWORK LATENCY SLA PARAMETERS ---
+% Inter-zone latency matrix (milliseconds)
+ZoneLatency = [|
+        0,   3,   4,   5
+    |   3,   0,   4,   5
+    |   4,   4,   0,   6
+    |   5,   5,   6,   0
+|];
+
+% Maximum allowed latency for WordPress <-> MySQL communication (ms)
+MaxAllowedLatency = 5;
+
+% --- BASE HARDWARE & COMPONENT PARAMETERS ---
+WPInstances = 4;
+VM = 10;
+NoComponents = 5;
+HardwareREQ = 3;
+VMOffers = 15;
+
+CompREQ = [|
+2, 512, 1000,
+|     2, 512, 2000,
+|     4, 2048, 500,
+|     4, 2048, 500,
+|     4, 4000, 500
+|];
+
+VMSpecs = [|
+    64, 976000, 1000,
+|    64, 488000, 8000,
+|    32, 244000, 2000,
+|    32, 244000, 4000,
+|    16, 122000, 2000,
+|    17, 117000, 24000,
+|    16, 122000, 1000,
+|    8, 68400, 2000,
+|    8, 68400, 2000,
+|    4, 15000, 2000,
+|    4, 30500, 1000,
+|    2, 7500, 1000,
+|    2, 3750, 2000,
+|    1, 3750, 1000,
+|    1, 3750, 1000,
+|];
+
+VMPrice = [
+    8403, 9152, 4105, 4576, 1373, 5400, 3079, 1301, 1288, 402,
+    379, 146, 128, 93, 98
+];

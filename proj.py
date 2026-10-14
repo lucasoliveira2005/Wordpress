@@ -75,10 +75,13 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
     # Check if the .dzn has AZ parameters (legacy fallback)
     dzn_text = ficheiro_dzn.read_text()
     if "NoZones" not in dzn_text:
-        match_vm = re.search(r"VM\s*=\s*(\d+);", dzn_text)
-        vm_count = int(match_vm.group(1)) if match_vm else 8
         instancia["NoZones"] = 1
-        instancia["VMZone"] = [1] * vm_count
+
+    if "MaxAllowedLatency" not in dzn_text:
+        match_zones = re.search(r"NoZones\s*=\s*(\d+);", dzn_text)
+        no_zones = int(match_zones.group(1)) if match_zones else 1
+        instancia["MaxAllowedLatency"] = 999999
+        instancia["ZoneLatency"] = [[0] * no_zones for _ in range(no_zones)]
     print("\nSolving (limite: 600 segundos)...", flush=True)
     
     inicio = time.perf_counter()
@@ -119,12 +122,20 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
         print("CONFIGURACAO DAS MAQUINAS VIRTUAIS")
         print("-" * 75)
 
-        # Retrieve VMZone from file/instance if available
+        # Retrieve VMZone: first from solver decision variable (sol.VMZone)
         vm_zones = None
-        try:
-            vm_zones = list(instancia["VMZone"])
-        except Exception:
-            pass
+        if hasattr(sol, "VMZone") and sol.VMZone is not None:
+            vm_zones = list(sol.VMZone)
+        else:
+            try:
+                vm_zones = list(instancia["VMZone"])
+            except Exception:
+                pass
+            if not vm_zones:
+                match_vz = re.search(r"VMZone\s*=\s*\[([\s\S]*?)\];", dzn_text)
+                if match_vz:
+                    raw_vz = re.sub(r"\s+", "", match_vz.group(1))
+                    vm_zones = [int(x) for x in raw_vz.split(",") if x]
 
         if vm_zones:
             print(
@@ -183,6 +194,41 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
             c_name = comp_labels[i] if i < len(comp_labels) else f"Comp {i+1}"
             valores = "".join(f"{valor:>11}" for valor in linha)
             print(f"{c_name:<14}{valores}")
+
+
+
+        # 3. Verificacao de Latencia SLA (se aplicavel)
+        match_max_lat = re.search(r"MaxAllowedLatency\s*=\s*(\d+);", dzn_text)
+        lat_match = re.search(r"ZoneLatency\s*=\s*\[\|([\s\S]*?)\|\];", dzn_text)
+        if match_max_lat and lat_match and int(match_max_lat.group(1)) < 999999:
+            max_sla = int(match_max_lat.group(1))
+            lat_rows = [
+                [int(x.strip()) for x in row.split(",") if x.strip()]
+                for row in lat_match.group(1).split("|")
+                if row.strip()
+            ]
+            print("\n" + "-" * 75)
+            print("VERIFICACAO DE LATENCIA SLA (WordPress <-> MySQL)")
+            print("-" * 75)
+            print(f"SLA Maximo Permitido: {max_sla} ms")
+            wp_vms = [j for j in range(len(matriz[0])) if matriz[0][j] == 1]
+            db_vms = [j for j in range(len(matriz[1])) if matriz[1][j] == 1]
+            if wp_vms and db_vms and vm_zones:
+                print(f"{'WordPress':>16} {'MySQL':>16} {'Latencia':>12} {'SLA Status':>16}")
+                print("-" * 65)
+                all_ok = True
+                for wp_idx in wp_vms:
+                    for db_idx in db_vms:
+                        z_wp = vm_zones[wp_idx]
+                        z_db = vm_zones[db_idx]
+                        lat = lat_rows[z_wp - 1][z_db - 1]
+                        ok = lat <= max_sla
+                        if not ok:
+                            all_ok = False
+                        status_str = f"PASS (<= {max_sla}ms)" if ok else f"FAIL (> {max_sla}ms)"
+                        print(f"VM {wp_idx+1} (Z{z_wp}){'':>7} VM {db_idx+1} (Z{z_db}){'':>7} {lat:>4} ms {'':>4} {status_str}")
+                if all_ok:
+                    print(f"\n[OK] Todos os pares WordPress <-> MySQL cumprem o SLA de {max_sla} ms!")
 
     else:
         print("\nNenhuma solucao encontrada.")

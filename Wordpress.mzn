@@ -67,9 +67,6 @@ constraint lowerBound(AssignmentMatrix, VM, Varnish, 2);
 constraint lowerBound(AssignmentMatrix, VM, MySQL, 2);
 constraint upperBound(AssignmentMatrix, VM, DNS_LoadBalancer, 1);
 
-
-
-
 % Availability Zone Anti-Affinity (Fault Tolerance)
 constraint if NoZones > 1 then
     az_dispersion(AssignmentMatrix, VMZone, NoZones, VM, MySQL) /\
@@ -79,13 +76,24 @@ else
     true
 endif;
 
-
+% Network Latency SLA (WordPress <-> MySQL)
+constraint if MaxAllowedLatency < 999999 then
+    latency_sla(AssignmentMatrix, VMZone, ZoneLatency,
+                MaxAllowedLatency, VM, Wordpress, MySQL)
+else
+    true
+endif;
 
 /***********************************
  ****                           ****
  ****       OPTIMIZATIONS       ****
  ****                           ****
  ***********************************/
+
+% Symmetry breaking: unused VMs default to Zone 1 to eliminate zone permutations
+constraint forall(k in 1..VM)(
+    OccupancyVector[k] == 0 -> VMZone[k] == 1
+);
 
 % See 'SymmetryBreaking.mzn' for constraint definition
 constraint LLX(AssignmentMatrix, NoComponents, VM, 1);

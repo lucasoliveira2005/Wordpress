@@ -1,0 +1,53 @@
+% ================================================================
+% Instance: AZ_O10_WP3_VM8_Z2_DualAZ.dzn
+% Course: Symbolic Explainable Artificial Intelligence (S-XAI)
+% Problem: WordPress Multi-AZ Cloud Deployment (CSPLib prob090 Extension)
+% Description: Dual-AZ Enterprise: 10 offers, 3 WP, 8 VMs, active-active SLA
+% Parameters: WPInstances=3 | VM Slots=8 | Zones=2 | Offers=10
+% SLA: MaxAllowedLatency = 10 ms (VMZone dynamically assigned by solver)
+% ================================================================
+
+% --- AVAILABILITY ZONE EXTENSION PARAMETERS ---
+NoZones = 2;
+
+% --- NETWORK LATENCY SLA PARAMETERS ---
+% Inter-zone latency matrix (milliseconds)
+ZoneLatency = [|
+        0,   4
+    |   4,   0
+|];
+
+% Maximum allowed latency for WordPress <-> MySQL communication (ms)
+MaxAllowedLatency = 10;
+
+% --- BASE HARDWARE & COMPONENT PARAMETERS ---
+WPInstances = 3;
+VM = 8;
+NoComponents = 5;
+HardwareREQ = 3;
+VMOffers = 10;
+
+CompREQ = [|
+2, 512, 1000,
+|     2, 512, 2000,
+|     4, 2048, 500,
+|     4, 2048, 500,
+|     4, 4000, 500
+|];
+
+VMSpecs = [|
+    64, 976000, 1000,
+|    64, 1952, 1000,
+|    32, 244000, 4000,
+|    16, 30000, 2000,
+|    16, 122000, 1000,
+|    8, 68400, 2000,
+|    4, 30500, 3000,
+|    2, 7500, 1000,
+|    1, 1700, 1000,
+|    1, 3750, 1000,
+|];
+
+VMPrice = [
+    8403, 16000, 4576, 1430, 3079, 1288, 827, 146, 58, 98
+];

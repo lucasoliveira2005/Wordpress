@@ -1,0 +1,54 @@
+% ================================================================
+% Instance: AZ_O10_WP4_VM10_Z3_Regional.dzn
+% Course: Symbolic Explainable Artificial Intelligence (S-XAI)
+% Problem: WordPress Multi-AZ Cloud Deployment (CSPLib prob090 Extension)
+% Description: Asymmetric Regional Triangle: 10 offers, 4 WP, 10 VMs, Z2-Z3 link (20ms) violates 15ms SLA
+% Parameters: WPInstances=4 | VM Slots=10 | Zones=3 | Offers=10
+% SLA: MaxAllowedLatency = 15 ms (VMZone dynamically assigned by solver)
+% ================================================================
+
+% --- AVAILABILITY ZONE EXTENSION PARAMETERS ---
+NoZones = 3;
+
+% --- NETWORK LATENCY SLA PARAMETERS ---
+% Inter-zone latency matrix (milliseconds)
+ZoneLatency = [|
+        0,   5,  14
+    |   5,   0,  20
+    |  14,  20,   0
+|];
+
+% Maximum allowed latency for WordPress <-> MySQL communication (ms)
+MaxAllowedLatency = 15;
+
+% --- BASE HARDWARE & COMPONENT PARAMETERS ---
+WPInstances = 4;
+VM = 10;
+NoComponents = 5;
+HardwareREQ = 3;
+VMOffers = 10;
+
+CompREQ = [|
+2, 512, 1000,
+|     2, 512, 2000,
+|     4, 2048, 500,
+|     4, 2048, 500,
+|     4, 4000, 500
+|];
+
+VMSpecs = [|
+    64, 976000, 1000,
+|    64, 1952, 1000,
+|    32, 244000, 4000,
+|    16, 30000, 2000,
+|    16, 122000, 1000,
+|    8, 68400, 2000,
+|    4, 30500, 3000,
+|    2, 7500, 1000,
+|    1, 1700, 1000,
+|    1, 3750, 1000,
+|];
+
+VMPrice = [
+    8403, 16000, 4576, 1430, 3079, 1288, 827, 146, 58, 98
+];

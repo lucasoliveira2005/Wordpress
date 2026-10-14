@@ -1,0 +1,49 @@
+% ================================================================
+% Instance: AZ_O05_WP3_VM8_Z3_StarHub.dzn
+% Course: Symbolic Explainable Artificial Intelligence (S-XAI)
+% Problem: WordPress Multi-AZ Cloud Deployment (CSPLib prob090 Extension)
+% Description: Star/Hub-and-spoke: 5 offers, 3 WP, 8 VMs, Z1 central hub (3-4ms), Z2-Z3 isolated (45ms)
+% Parameters: WPInstances=3 | VM Slots=8 | Zones=3 | Offers=5
+% SLA: MaxAllowedLatency = 15 ms (VMZone dynamically assigned by solver)
+% ================================================================
+
+% --- AVAILABILITY ZONE EXTENSION PARAMETERS ---
+NoZones = 3;
+
+% --- NETWORK LATENCY SLA PARAMETERS ---
+% Inter-zone latency matrix (milliseconds)
+ZoneLatency = [|
+        0,   3,   4
+    |   3,   0,  45
+    |   4,  45,   0
+|];
+
+% Maximum allowed latency for WordPress <-> MySQL communication (ms)
+MaxAllowedLatency = 15;
+
+% --- BASE HARDWARE & COMPONENT PARAMETERS ---
+WPInstances = 3;
+VM = 8;
+NoComponents = 5;
+HardwareREQ = 3;
+VMOffers = 5;
+
+CompREQ = [|
+2, 512, 1000,
+|     2, 512, 2000,
+|     4, 2048, 500,
+|     4, 2048, 500,
+|     4, 4000, 500
+|];
+
+VMSpecs = [|
+    64, 976000, 1000,
+|    16, 122000, 2000,
+|    8, 68400, 2000,
+|    4, 30500, 1000,
+|    1, 3750, 1000,
+|];
+
+VMPrice = [
+    8403, 1373, 1301, 379, 98
+];
