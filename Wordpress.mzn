@@ -68,21 +68,13 @@ constraint lowerBound(AssignmentMatrix, VM, MySQL, 2);
 constraint upperBound(AssignmentMatrix, VM, DNS_LoadBalancer, 1);
 
 % Availability Zone Anti-Affinity (Fault Tolerance)
-constraint if NoZones > 1 then
-    az_dispersion(AssignmentMatrix, VMZone, NoZones, VM, MySQL) /\
-    az_dispersion(AssignmentMatrix, VMZone, NoZones, VM, Varnish) /\
-    az_dispersion(AssignmentMatrix, VMZone, NoZones, VM, HTTP_LoadBalancer)
-else
-    true
-endif;
+constraint az_dispersion(AssignmentMatrix, VMZone, NoZones, VM, MySQL);
+constraint az_dispersion(AssignmentMatrix, VMZone, NoZones, VM, Varnish);
+constraint az_dispersion(AssignmentMatrix, VMZone, NoZones, VM, HTTP_LoadBalancer);
 
 % Network Latency SLA (WordPress <-> MySQL)
-constraint if MaxAllowedLatency < 999999 then
-    latency_sla(AssignmentMatrix, VMZone, ZoneLatency,
-                MaxAllowedLatency, VM, Wordpress, MySQL)
-else
-    true
-endif;
+constraint latency_sla(AssignmentMatrix, VMZone, ZoneLatency,
+                       MaxAllowedLatency, VM, Wordpress, MySQL);
 
 /***********************************
  ****                           ****

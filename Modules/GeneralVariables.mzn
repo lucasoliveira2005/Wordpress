@@ -21,10 +21,10 @@ array[1..VM] of var 0..64: CPU;
 array[1..VM] of var 0..1000000: Memory;
 array[1..VM] of var 0..16000: Storage;
 
-% --- AZ Extension Variables (Dynamic Solver Decision Variable) ---
+% AZ Extension Variables (Dynamic Solver Decision Variable)
 int: NoZones;
 array[1..VM] of var 1..NoZones: VMZone;
 
-% --- Latency SLA Variables ---
+% Latency SLA Variables
 array[1..NoZones, 1..NoZones] of int: ZoneLatency;
 int: MaxAllowedLatency;

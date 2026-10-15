@@ -2,10 +2,8 @@ import os
 import sys
 from pathlib import Path
 from minizinc import Model, Instance, Solver
-
 from datetime import timedelta
 import time
-
 import re
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -15,132 +13,91 @@ MODELO_MZN = BASE_DIR / "Wordpress.mzn"
 SOLVER_NAME = "gecode"
 
 
-
 def list_dzn_files():
-    """Procura e ordena os ficheiros .dzn na pasta Data."""
-    ficheiros = sorted(DATA_DIR.glob("*.dzn"))
-    return ficheiros
+    """Finds and sorts all .dzn files in the Data directory."""
+    files = sorted(DATA_DIR.glob("*.dzn"))
+    return files
 
 
-def select_dzn_file(ficheiros):
-    """Apresenta o menu e obtém a escolha do utilizador."""
-    if not ficheiros:
-        print(f"Nenhum ficheiro '.dzn' encontrado em: {DATA_DIR}")
+def select_dzn_file(files):
+    """Displays the menu and returns the user's choice."""
+    if not files:
+        print(f"No '.dzn' files found in: {DATA_DIR}")
         sys.exit(1)
 
     print("\n--- INPUT DATASET (.dzn) ---")
 
-    for i, ficheiro in enumerate(ficheiros, 1):
-        print(f"[{i}] {ficheiro.name}")
+    for i, file in enumerate(files, 1):
+        print(f"[{i:02d}] {file.name}")
 
     print("---------------------------------------")
 
     while True:
         try:
-            escolha = int(
-                input("Selecione o ficheiro de input: ")
-            )
+            choice = int(input("Select the input file: "))
 
-            if 1 <= escolha <= len(ficheiros):
-                return ficheiros[escolha - 1]
+            if 1 <= choice <= len(files):
+                return files[choice - 1]
 
-            print(f"Escolha um número entre 1 e {len(ficheiros)}.")
+            print(f"Please choose a number between 1 and {len(files)}.")
 
         except ValueError:
-            print("Entrada inválida. Introduza um número inteiro.")
+            print("Invalid input. Please enter an integer.")
 
 
 def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
-    """Carrega o modelo e os dados e executa o solver."""
+    """Loads the model and data, and executes the solver."""
 
     if not modelo_path.is_file():
-        print(f"Erro: modelo não encontrado: {modelo_path}")
+        print(f"Error: model file not found: {modelo_path}")
         sys.exit(1)
 
-    print(f"\nModelo: {modelo_path.name}")
-    print(f"Dados:  {ficheiro_dzn.name}")
+    print(f"\nModel : {modelo_path.name}")
+    print(f"Data  : {ficheiro_dzn.name}")
     print(f"Solver: {solver_name}")
 
-    # Carregar o modelo principal
+    # Load main model
     modelo = Model(str(modelo_path))
 
-    # Associar o ficheiro de dados
+    # Add dataset file
     modelo.add_file(str(ficheiro_dzn))
 
-    # Solver
+    # Solver lookup
     solver = Solver.lookup(solver_name)
 
     instancia = Instance(solver, modelo)
-
-    # Check if the .dzn has AZ parameters (legacy fallback)
     dzn_text = ficheiro_dzn.read_text()
-    if "NoZones" not in dzn_text:
-        instancia["NoZones"] = 1
 
-    if "MaxAllowedLatency" not in dzn_text:
-        match_zones = re.search(r"NoZones\s*=\s*(\d+);", dzn_text)
-        no_zones = int(match_zones.group(1)) if match_zones else 1
-        instancia["MaxAllowedLatency"] = 999999
-        instancia["ZoneLatency"] = [[0] * no_zones for _ in range(no_zones)]
-    print("\nSolving (limite: 600 segundos)...", flush=True)
-    
-    inicio = time.perf_counter()
-    #resultado = instancia.solve()
+    print("\nSolving (timeout: 600 seconds)...", flush=True)
+
+    start_time = time.perf_counter()
     resultado = instancia.solve(time_limit=timedelta(seconds=600), verbose=True)
-    fim = time.perf_counter()
+    end_time = time.perf_counter()
 
-    '''
-    # 5. Apresentar os resultados
-    print("\n--- RESULTADO ---")
-
-    if resultado.solution is not None:
-        print(resultado.solution)
-    else:
-        print("Nenhuma solução encontrada.")
-
-
-    print(f"Tempo de execução: {fim - inicio:.2f} segundos")
-    print(f"\nEstado da resolução: {resultado.status}")
-    print("Objetivo:", resultado.objective)
-    print("Estatísticas:", resultado.statistics)
-    '''
-
-    # Apresentar os resultados
+    # Display results
     print("\n" + "=" * 65)
-    print("                 RESULTADOS")
+    print("                 RESULTS")
     print("=" * 65)
 
-    print(f"Solução             : {resultado.status}")
-    print(f"Objetivo            : {resultado.objective}")
-    print(f"Tempo de execucao   : {fim - inicio:.2f} segundos")
+    print(f"Solution status   : {resultado.status}")
+    print(f"Objective (Price) : {resultado.objective}")
+    print(f"Execution time    : {end_time - start_time:.2f} seconds")
 
     if resultado.solution is not None:
         sol = resultado.solution
 
-        # 1. Configuracao das VMs
+        # 1. Virtual Machine Configuration
         print("\n" + "-" * 75)
-        print("CONFIGURACAO DAS MAQUINAS VIRTUAIS")
+        print("VIRTUAL MACHINE CONFIGURATION")
         print("-" * 75)
 
-        # Retrieve VMZone: first from solver decision variable (sol.VMZone)
-        vm_zones = None
-        if hasattr(sol, "VMZone") and sol.VMZone is not None:
-            vm_zones = list(sol.VMZone)
-        else:
-            try:
-                vm_zones = list(instancia["VMZone"])
-            except Exception:
-                pass
-            if not vm_zones:
-                match_vz = re.search(r"VMZone\s*=\s*\[([\s\S]*?)\];", dzn_text)
-                if match_vz:
-                    raw_vz = re.sub(r"\s+", "", match_vz.group(1))
-                    vm_zones = [int(x) for x in raw_vz.split(",") if x]
+        # Retrieve VMZone from solver decision variable
+        vm_zones = list(sol.VMZone) if hasattr(sol, "VMZone") and sol.VMZone is not None else None
 
         if vm_zones:
             print(
-                f"{'VM':>4} {'Zona':>6} {'Tipo':>6} {'CPU':>6} "
-                f"{'Memoria':>10} {'Storage':>10} {'Preco':>8}"
+                f"{'VM':>4} {'Zone':>6} {'Type':>6} {'CPU':>6} "
+                f"{'Memory':>10} {'Storage':>10} {'Price':>8}"
             )
             print("-" * 60)
             for i in range(len(sol.VMType)):
@@ -156,8 +113,8 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
                 )
         else:
             print(
-                f"{'VM':>4} {'Tipo':>6} {'CPU':>6} "
-                f"{'Memoria':>10} {'Storage':>10} {'Preco':>8}"
+                f"{'VM':>4} {'Type':>6} {'CPU':>6} "
+                f"{'Memory':>10} {'Storage':>10} {'Price':>8}"
             )
             print("-" * 50)
             for i in range(len(sol.VMType)):
@@ -170,9 +127,9 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
                     f"{sol.Price[i]:>8}"
                 )
 
-        # 2. Matriz de atribuicao
+        # 2. Assignment Matrix
         print("\n" + "-" * 65)
-        print("MATRIZ DE ATRIBUICAO")
+        print("ASSIGNMENT MATRIX")
         print("-" * 65)
 
         matriz = sol.AssignmentMatrix
@@ -195,12 +152,10 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
             valores = "".join(f"{valor:>11}" for valor in linha)
             print(f"{c_name:<14}{valores}")
 
-
-
-        # 3. Verificacao de Latencia SLA (se aplicavel)
+        # 3. Latency SLA Verification (WordPress <-> MySQL)
         match_max_lat = re.search(r"MaxAllowedLatency\s*=\s*(\d+);", dzn_text)
         lat_match = re.search(r"ZoneLatency\s*=\s*\[\|([\s\S]*?)\|\];", dzn_text)
-        if match_max_lat and lat_match and int(match_max_lat.group(1)) < 999999:
+        if match_max_lat and lat_match:
             max_sla = int(match_max_lat.group(1))
             lat_rows = [
                 [int(x.strip()) for x in row.split(",") if x.strip()]
@@ -208,13 +163,13 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
                 if row.strip()
             ]
             print("\n" + "-" * 75)
-            print("VERIFICACAO DE LATENCIA SLA (WordPress <-> MySQL)")
+            print("NETWORK LATENCY SLA VERIFICATION (WordPress <-> MySQL)")
             print("-" * 75)
-            print(f"SLA Maximo Permitido: {max_sla} ms")
+            print(f"Maximum Allowed SLA: {max_sla} ms")
             wp_vms = [j for j in range(len(matriz[0])) if matriz[0][j] == 1]
             db_vms = [j for j in range(len(matriz[1])) if matriz[1][j] == 1]
             if wp_vms and db_vms and vm_zones:
-                print(f"{'WordPress':>16} {'MySQL':>16} {'Latencia':>12} {'SLA Status':>16}")
+                print(f"{'WordPress':>16} {'MySQL':>16} {'Latency':>12} {'SLA Status':>16}")
                 print("-" * 65)
                 all_ok = True
                 for wp_idx in wp_vms:
@@ -228,14 +183,14 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
                         status_str = f"PASS (<= {max_sla}ms)" if ok else f"FAIL (> {max_sla}ms)"
                         print(f"VM {wp_idx+1} (Z{z_wp}){'':>7} VM {db_idx+1} (Z{z_db}){'':>7} {lat:>4} ms {'':>4} {status_str}")
                 if all_ok:
-                    print(f"\n[OK] Todos os pares WordPress <-> MySQL cumprem o SLA de {max_sla} ms!")
+                    print(f"\n[OK] All WordPress <-> MySQL pairs comply with the {max_sla} ms SLA!")
 
     else:
-        print("\nNenhuma solucao encontrada.")
+        print("\nNo solution found.")
 
-    # 3. Estatisticas
+    # 4. Statistics
     print("\n" + "-" * 65)
-    print("ESTATISTICAS DA EXECUCAO")
+    print("EXECUTION STATISTICS")
     print("-" * 65)
 
     estatisticas = resultado.statistics
@@ -252,11 +207,11 @@ def solve(modelo_path, ficheiro_dzn, solver_name="gecode"):
 
 
 if __name__ == "__main__":
-    ficheiros = list_dzn_files()
-    dzn_escolhido = select_dzn_file(ficheiros)
+    files = list_dzn_files()
+    chosen_dzn = select_dzn_file(files)
 
     solve(
         modelo_path=MODELO_MZN,
-        ficheiro_dzn=dzn_escolhido,
+        ficheiro_dzn=chosen_dzn,
         solver_name=SOLVER_NAME
     )
